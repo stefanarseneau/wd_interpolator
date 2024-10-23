@@ -1,0 +1,30 @@
+[build-system]
+requires = ["astropy",
+            "pyphot",
+            "lmfit",
+            "numpy",
+            "scipy",
+            "setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "interpolator"
+version = "0.2.12"
+authors = [
+  { name="Stefan Arseneau", email="arseneausm@gmail.com" },
+]
+description = "Tools for fitting white dwarf SEDs"
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[tool.setuptools.packages.find]
+exclude = ["caches*"]
+
+[project.urls]
+Homepage = "https://github.com/stefanarseneau/wd_interpolator"
+Issues = "https://github.com/stefanarseneau/wd_interpolator/issues"
