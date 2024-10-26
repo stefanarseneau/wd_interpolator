@@ -13,7 +13,7 @@ from scipy.interpolate import RegularGridInterpolator
 from astropy.table import Table
 
 import pyphot
-import extinction
+#import extinction
 
 def plot(obs_mag, e_obs_mag, distance, radius, teff, logg, Engine):
     model_flux = 4 * np.pi * Engine.interpolator(teff, logg)
@@ -37,29 +37,29 @@ def plot(obs_mag, e_obs_mag, distance, radius, teff, logg, Engine):
     return f
 
 
-def deredden(bsq, coords, photo, bands):
-    # perform the query
-    bsq_res = bsq.query(coords).copy()
-    if np.isnan(bsq_res):
-        bsq_res = 0
-
-    # Convert to actual units
-    Ebv = bsq_res*0.901*0.98
-    e_Ebv = Ebv*0.2
-
-    # Parameters for correcting using Gaia
-    Rv = 3.1
-    A_v0 = Ebv*Rv
-
-    # Fetch Gaia photometric band wavelengths and store in `gaia_phot_wavl`
-    lib = pyphot.get_library()
-    phot = [lib[band] for band in bands]
-    phot_wavl = np.array([x.lpivot.to('angstrom').value for x in phot])
-
-    # For each point, find extinction using the parameters we defined above
-    ext_all = extinction.fitzpatrick99(phot_wavl, A_v0, Rv)
-    photo_corrected = np.array(photo) - ext_all
-    return photo_corrected
+#def deredden(bsq, coords, photo, bands):
+#    # perform the query
+#    bsq_res = bsq.query(coords).copy()
+#    if np.isnan(bsq_res):
+#        bsq_res = 0
+#
+#    # Convert to actual units
+#    Ebv = bsq_res*0.901*0.98
+#    e_Ebv = Ebv*0.2
+#
+#    # Parameters for correcting using Gaia
+#    Rv = 3.1
+#    A_v0 = Ebv*Rv
+#
+#    # Fetch Gaia photometric band wavelengths and store in `gaia_phot_wavl`
+#    lib = pyphot.get_library()
+#    phot = [lib[band] for band in bands]
+#    phot_wavl = np.array([x.lpivot.to('angstrom').value for x in phot])
+#
+#    # For each point, find extinction using the parameters we defined above
+#    ext_all = extinction.fitzpatrick99(phot_wavl, A_v0, Rv)
+#    photo_corrected = np.array(photo) - ext_all
+#    return photo_corrected
 
 def correct_gband(bp, rp, astrometric_params_solved, phot_g_mean_mag):
     """
