@@ -1,0 +1,12 @@
+Metadata-Version: 2.4
+Name: interpolator
+Version: 0.2.12
+Summary: Tools for fitting white dwarf SEDs
+Author-email: Stefan Arseneau <arseneausm@gmail.com>
+Project-URL: Homepage, https://github.com/stefanarseneau/wd_interpolator
+Project-URL: Issues, https://github.com/stefanarseneau/wd_interpolator/issues
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown

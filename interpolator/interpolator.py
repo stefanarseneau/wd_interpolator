@@ -1,10 +1,14 @@
 from scipy.interpolate import CloughTocher2DInterpolator, LinearNDInterpolator, RegularGridInterpolator
 from scipy.interpolate import griddata, interp1d
 from dataclasses import dataclass
+import re
+import pandas as pd
 import numpy as np
+import tqdm
 import os
 
 from astropy.table import Table, vstack
+import glob
 import pyphot
 
 if __name__ != "__main__":
@@ -30,28 +34,186 @@ class WarwickDAInterpolator:
     Input:
         bands
     """
-    def __init__(self, bands, precache=True):
+    def __init__(self, model, bands, precache=True, speckws = {}):
+        self.model = model
         self.bands = bands # pyphot library objects
         self.precache = precache # use precaching?
+        self.spectrum = Spectrum(model = self.model, **speckws)
 
         if not self.precache:
-            self.teff_lims = (4001, 129000)
-            self.logg_lims = (4.51, 9.49)
-
+            self.teff_lims = (1500, 140000.0)
+            self.logg_lims = (6.5, 9.49)
             # generate the interpolator 
-            base_wavl, warwick_model, warwick_model_low_logg, table = utils.build_warwick_da(flux_unit = 'flam')
-            self.interp = lambda teff, logg: np.array([lib[band].get_flux(base_wavl * pyphot.unit['angstrom'], warwick_model((teff, logg)) * pyphot.unit['erg/s/cm**2/angstrom'], axis = 1).to('erg/s/cm**2/angstrom').value for band in self.bands])
-            
+            self.interp = lambda teff, logg: np.array([lib[band].get_flux(self.spectrum.wavl * pyphot.unit['angstrom'], self.spectrum.model_spec((teff, logg)) * pyphot.unit['erg/s/cm**2/angstrom'], axis = 1).to('erg/s/cm**2/angstrom').value for band in self.bands])
         else:
-            self.teff_lims = (4001, 90000)
-            self.logg_lims = (7, 9)
-
-            dirpath = os.path.dirname(os.path.realpath(__file__)) # identify the current directory
-            table = Table.read(f'{dirpath}/data/warwick_da/warwick_cache_table.csv') 
+            self.teff_lims = (1500, 140000.0)
+            self.logg_lims = (6.5, 9.49)
+            table = self.spectrum.cachetable
             self.interp = MultiBandInterpolator(table, self.bands, self.teff_lims, self.logg_lims)
 
     def __call__(self, teff, logg):
         return self.interp(teff, logg)
+    
+class Spectrum:
+    def __init__(self, model, units = 'flam', wavl_range = (3600, 9000)):
+        # (path_to_files, n_free_parameters, wavlength_frame)
+        supported_models = {'1d_da_nlte': ('data/1d_da_nlte/', 2, 'air'),
+                            '1d_elm_da_lte': ('data/1d_elm_da_lte/', 2, 'air'),
+                            '3d_da_lte_noh2': ('data/3d_da_lte_noh2/', 2, 'vac'),
+                            '3d_da_lte_h2': ('data/3d_da_lte_h2/', 2, 'vac'),
+                            '3d_da_lte_old': ('data/3d_da_lte_old/', 2, 'air')}
+        assert model in list(supported_models.keys()), 'requested model not supported'
+        # load in the model files
+        dirname = os.path.dirname(os.path.abspath(__file__)) 
+        self.path = os.path.join(dirname, supported_models[model][0])
+        self.files = list(set(glob.glob(f"{self.path}/*")) - set(glob.glob(f"{self.path}/*.csv")))
+        self.units = units
+        self.modelname = model
+        self.wavl_range = wavl_range
+        # fetch the wavelength and flux grids
+        self.nparams = supported_models[model][1]
+        wavls, values, fluxes = [], [], []
+        for file in self.files:
+            wl, vals, fls = self.filehandler(file)
+            wavls += wl
+            values += vals
+            fluxes += fls        
+        self.values = np.array(values, dtype=float)
+        wl_grid_length = list(set([len(wl) for wl in wavls]))
+        # Handle multiple wavelength grids in the same model
+        try:
+            fluxes_np = np.array(fluxes, dtype=float)
+            wavls = np.array(wavls, dtype=float)
+        except ValueError:
+            wavls, fluxes_np = self.interpolate(wavls, fluxes, max(wl_grid_length))
+        mask = (self.wavl_range[0] < wavls[0]) & (wavls[0] < self.wavl_range[1])
+        self.wavl, self.fluxes = wavls[0][mask], fluxes_np[:,mask]
+        # convert to flam if that option is specified
+        if self.units == 'flam':
+            for i in range(len(self.fluxes)):
+                self.fluxes[i] = 2.99792458e18 * self.fluxes[i] / self.wavl[i]**2 
+
+        if supported_models[model][2] == 'air':
+            self.air2vac()
+        self.build_interpolator()
+
+        if os.path.isfile(os.path.join(self.path, 'cache_table.csv')):
+            self.cachetable = pd.read_csv(os.path.join(self.path, 'cache_table.csv'))
+        else:
+            self.build_cachetable()
+
+    def build_cachetable(self):
+        print('Cachetable not found! Building...')
+        filters = lib.content
+        rowvals = np.nan*np.zeros((self.unique_logg.shape[0]*self.unique_logteff.shape[0], 2 + len(filters)))
+        for i, logg in tqdm.tqdm(enumerate(self.unique_logg), total=self.unique_logg.shape[0]):
+            for j, teff in enumerate(10**self.unique_logteff):
+                idx = i*self.unique_logteff.shape[0] + j
+                fluxes = np.array([lib[filt].get_flux(self.wavl*pyphot.unit['AA'], self(teff, logg)*pyphot.unit['erg/s/cm**2/AA']).to('erg/s/cm**2/AA').value for filt in filters])
+                rowvals[idx,0] = teff
+                rowvals[idx,1] = logg
+                rowvals[idx,2:] = fluxes
+        columns = ['teff', 'logg'] + filters
+        self.cachetable = pd.DataFrame(rowvals, columns = columns)
+        self.cachetable.to_csv(os.path.join(self.path, 'cache_table.csv'), index=False)
+
+    def air2vac(self):
+        _tl=1.e4/self.wavl
+        self.wavl = (self.wavl*(1.+6.4328e-5+2.94981e-2/\
+                          (146.-_tl**2)+2.5540e-4/(41.-_tl**2)))
+
+    def interpolate(self, wavls, fluxes, length_to_interpolate):
+        for i in range(len(wavls)):
+            if len(wavls[i]) == length_to_interpolate:
+                reference_grid = wavls[i]
+                break
+        for i in range(len(wavls)):
+            if len(wavls[i]) != length_to_interpolate:
+                fluxes[i] = np.interp(reference_grid, wavls[i], fluxes[i])
+                wavls[i] = reference_grid
+        return np.array(wavls), np.array(fluxes)
+
+    def build_interpolator(self):
+        self.unique_logteff = np.array(sorted(list(set(self.values[:,0]))))
+        self.unique_logg = np.array(sorted(list(set(self.values[:,1]))))
+        self.flux_grid = np.zeros((len(self.unique_logteff), 
+                                len(self.unique_logg), 
+                                len(self.wavl)))
+
+        for i in range(len(self.unique_logteff)):
+            for j in range(len(self.unique_logg)):
+                target = [self.unique_logteff[i], self.unique_logg[j]]
+                try:
+                    indx = np.where((self.values == target).all(axis=1))[0][0]
+                    self.flux_grid[i,j] = self.fluxes[indx]
+                except IndexError:
+                    self.flux_grid[i,j] += -999
+
+        self.model_spec = RegularGridInterpolator((10**self.unique_logteff, self.unique_logg), self.flux_grid) 
+
+    def filehandler(self, file):
+        with open(file, 'r') as f:
+            fdata = f.read()
+
+        wavl = self.fetch_wavl(fdata)
+        values, fluxes = self.fetch_spectra(fdata)
+        dim_wavl = []
+        for i in range(len(fluxes)):
+            dim_wavl.append(wavl)
+        return dim_wavl, values, fluxes
+
+    def fetch_wavl(self, fdata):
+        def get_linenum(npoints):
+            first = 1
+            last = (npoints // 10 + 1)
+            if (npoints % 10) != 0:
+                last += 1
+            return first, last
+        # figure out how many points are in the file
+        lines = fdata.split('\n')
+        npoints = int(lines[0])
+        first, last = get_linenum(npoints)
+
+        wavl = []
+        for line in lines[first:last]:
+            line = line.strip('\n').split()
+            for num in line:
+                wavl.append(float(num))
+        return wavl
+
+    def fetch_spectra(self, fdata):
+        def idx_to_params(indx, first_n):
+            string = lines[indx]
+            regex = "[-+]?[0-9]*\\.?[0-9]+(?:[eE][-+]?[0-9]+)?"
+            params = re.findall(regex, string)[:first_n]
+            params = [np.log10(float(num)) for num in params]
+            return params
+        lines = fdata.split('\n')
+        npoints = int(lines[0])
+        indx = [i for i, line in enumerate(lines) if 'Effective' in line]
+        
+        values, fluxes = [], []
+        for n in range(len(indx)):
+            first = indx[n]+1
+            try:
+                last = indx[n+1]
+            except IndexError:
+                last = len(lines)
+            params = idx_to_params(indx[n], self.nparams)
+            values.append(params)
+
+            flux = []
+            for line in lines[first:last]:
+                line = line.strip('\n').split()
+                for num in line:
+                    flux.append(float(num))
+
+            assert len(flux) == npoints, "Error reading spectrum: wrong number of points!"
+            fluxes.append(flux)
+        return values, fluxes
+    
+    def __call__(self, teff, logg):
+        return self.model_spec((teff, logg))
     
 class LaPlataBase:
     def __init__(self, bands, layer =  None):        
