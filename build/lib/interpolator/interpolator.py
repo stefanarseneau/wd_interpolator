@@ -23,22 +23,35 @@ limits = {
     'ONe_Hdef': ((4250, 78800), (8.86, 9.31)),
 }
 
+dirname = os.path.dirname(os.path.abspath(__file__)) 
+supported_models = {'1d_da_nlte': ('data/1d_da_nlte/', 2, 'air'),
+                            '1d_elm_da_lte': ('data/1d_elm_da_lte/', 2, 'air'),
+                            '3d_da_lte_noh2': ('data/3d_da_lte_noh2/', 2, 'vac'),
+                            '3d_da_lte_h2': ('data/3d_da_lte_h2/', 2, 'vac'),
+                            '3d_da_lte_old': ('data/3d_da_lte_old/', 2, 'air')}
+
 class Interpolator:
     def __init__(self, interp_obj, teff_lims, logg_lims):
         self.interp_obj = interp_obj
         self.teff_lims = teff_lims
         self.logg_lims = logg_lims
 
-class WarwickDAInterpolator:
+def purge_cachetables(names : list = None):
+    names = list(supported_models.keys()) if names == None else names
+    assert np.all([name in supported_models.keys() for name in names])
+    for name in names:
+        cachetable = os.path.join(dirname, supported_models[name][0], 'cache_table.csv')
+        if os.path.isfile(cachetable):
+            os.remove(cachetable)
+
+class WarwickPhotometry:
     """
-    Input:
-        bands
     """
     def __init__(self, model, bands, precache=True, speckws = {}):
         self.model = model
         self.bands = bands # pyphot library objects
         self.precache = precache # use precaching?
-        self.spectrum = Spectrum(model = self.model, **speckws)
+        self.spectrum = WarwickSpectrum(model = self.model, with_cachetable = self.precache, **speckws)
 
         if not self.precache:
             self.teff_lims = (1500, 140000.0)
@@ -54,17 +67,11 @@ class WarwickDAInterpolator:
     def __call__(self, teff, logg):
         return self.interp(teff, logg)
     
-class Spectrum:
-    def __init__(self, model, units = 'flam', wavl_range = (3600, 9000)):
+class WarwickSpectrum:
+    def __init__(self, model, units = 'flam', wavl_range = (3600, 9000), with_cachetable = False):
         # (path_to_files, n_free_parameters, wavlength_frame)
-        supported_models = {'1d_da_nlte': ('data/1d_da_nlte/', 2, 'air'),
-                            '1d_elm_da_lte': ('data/1d_elm_da_lte/', 2, 'air'),
-                            '3d_da_lte_noh2': ('data/3d_da_lte_noh2/', 2, 'vac'),
-                            '3d_da_lte_h2': ('data/3d_da_lte_h2/', 2, 'vac'),
-                            '3d_da_lte_old': ('data/3d_da_lte_old/', 2, 'air')}
         assert model in list(supported_models.keys()), 'requested model not supported'
         # load in the model files
-        dirname = os.path.dirname(os.path.abspath(__file__)) 
         self.path = os.path.join(dirname, supported_models[model][0])
         self.files = list(set(glob.glob(f"{self.path}/*")) - set(glob.glob(f"{self.path}/*.csv")))
         self.units = units
@@ -90,16 +97,17 @@ class Spectrum:
         self.wavl, self.fluxes = wavls[0][mask], fluxes_np[:,mask]
         # convert to flam if that option is specified
         if self.units == 'flam':
-            for i in range(len(self.fluxes)):
-                self.fluxes[i] = 2.99792458e18 * self.fluxes[i] / self.wavl[i]**2 
+            #for i in range(len(self.fluxes)):
+            #    self.fluxes[i] = 2.99792458e18 * self.fluxes[i] / self.wavl[i]**2 
+            self.fnu_to_flam()
 
         if supported_models[model][2] == 'air':
             self.air2vac()
         self.build_interpolator()
 
-        if os.path.isfile(os.path.join(self.path, 'cache_table.csv')):
+        if os.path.isfile(os.path.join(self.path, 'cache_table.csv')) and with_cachetable:
             self.cachetable = pd.read_csv(os.path.join(self.path, 'cache_table.csv'))
-        else:
+        elif with_cachetable:
             self.build_cachetable()
 
     def build_cachetable(self):
@@ -116,6 +124,9 @@ class Spectrum:
         columns = ['teff', 'logg'] + filters
         self.cachetable = pd.DataFrame(rowvals, columns = columns)
         self.cachetable.to_csv(os.path.join(self.path, 'cache_table.csv'), index=False)
+
+    def fnu_to_flam(self):
+        self.fluxes = 2.99792458e18 * self.fluxes / self.wavl**2
 
     def air2vac(self):
         _tl=1.e4/self.wavl
