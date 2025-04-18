@@ -9,6 +9,7 @@ import corner
 import warnings
 
 from dust_extinction.parameter_averages import F19
+from dust_extinction.parameter_averages import F99
 import astropy.units as u
 
 from typing import Tuple
@@ -35,26 +36,43 @@ def mag_to_flux(mag : np.array, e_mag : np.array, filters : np.array) -> Tuple[n
     e_flux = 1.09 * flux * e_mag
     return flux, e_flux
 
-def get_model_flux(theta : np.array, factors : np.array, interpolator : interpolator.WarwickPhotometry) -> np.array:
+def get_model_flux(theta : np.array, factors : np.array, interpolator : interpolator.WarwickPhotometry, logg_function = None) -> np.array:
     """get model photometric flux for a WD with a given radius, located a given distance away
     """     
     mass_sun, radius_sun, newton_G, speed_light = 1.9884e30, 6.957e8, 6.674e-11, 299792458
-    teff, radius, distance, av, mass = theta
-    logg = np.log10(100*(newton_G * mass_sun * mass) / (radius * radius_sun)**2)
+    if logg_function == None:
+        # if no logg function is provided, assume mass is provided and calculate
+        teff, radius, distance, av, mass = theta
+        logg = np.log10(100*(newton_G * mass_sun * mass) / (radius * radius_sun)**2)
+    else:
+        # if logg function is provided, use it
+        teff, radius, distance, av = theta
+        logg = logg_function(teff, radius)
     fl = 4 * np.pi * interpolator(teff, logg) # flux in physical units
     #convert to SI units
     pc_to_m, radius_sun = 3.086775e16, 6.957e8
     radius *= radius_sun # Rsun to meter
     distance *= pc_to_m # Parsec to meter
-    return (radius / distance)**2 * fl * F19(Rv=3.1).extinguish(factors, Av=av)# scale down flux by distance
+    extinction = np.array([0.835*av, 1.139*av, 0.650*av])
+    return (radius / distance)**2 * fl * np.power(10.0, -0.4 * extinction)#* F99(Rv=3.1).extinguish(factors, Av=av)# scale down flux by distance
 
-def loss(params, fl, e_fl, factors, interp, logprob = False):
+def loss(params, fl, e_fl, factors, interp, logprob = False, logg_function = None):
+    # ugly cases code. need to kill this with reason
     if not logprob:
-        teff, radius, distance, av, mass = params.valuesdict().values()
+        if logg_function == None:
+            teff, radius, distance, av, mass = params.valuesdict().values()
+            theta = np.array([teff, radius, distance, av, mass])
+        else:
+            teff, radius, distance, av = params.valuesdict().values()
+            theta = np.array([teff, radius, distance, av])
     else:
-        teff, radius, distance, av, mass = params
-    theta = np.array([teff, radius, distance, av, mass])
-    flux_model = get_model_flux(theta, factors=factors, interpolator=interp)
+        if logg_function == None:
+            teff, radius, distance, av, mass = params
+            theta = np.array([teff, radius, distance, av, mass])
+        else:
+            teff, radius, distance, av = params
+            theta = np.array([teff, radius, distance, av])
+    flux_model = get_model_flux(theta, factors=factors, interpolator=interp, logg_function=logg_function)
     if logprob:
         return -0.5 * np.sum((fl - flux_model)**2 / e_fl**2 + np.log(2 * np.pi * e_fl**2))
     else:
@@ -89,17 +107,19 @@ def log_prob(theta : np.array, flux : np.array, e_flux : np.array, factors : np.
     return ll + lp
 
 def coarse_fit(flux : np.array, e_flux : np.array, interp : interpolator.WarwickPhotometry, distance : np.float64, av = np.float64,
-                p0 : list = [10000, 0.012, 0.6], coarse_kws : dict = {'nan_policy':'omit'}):
+                logg_function = None, vary_mass : bool = False, p0 : list = [10000, 0.012, 0.6], 
+                coarse_kws : dict = {'nan_policy':'omit'}):
     # make parameters
     params = lmfit.Parameters()
-    params.add('teff', value=p0[0], min=4000, max=120000, vary=True)
-    params.add('radius', value=p0[1], min=0.0035, max=0.021, vary=True)
+    params.add('teff', value=p0[0], min=2000, max=120000, vary=True)
+    params.add('radius', value=p0[1], min=0.003, max=0.02, vary=True)
     params.add('distance', value=distance, min=10, max=3000, vary=False)
     params.add('av', value=av, min=0.000001, max=2, vary=False)
-    params.add('mass', value=0.6, min=0.1, max=1.4, vary=False)
+    if logg_function is None:
+        params.add('mass', value=0.6, min=0.1, max=1.4, vary=vary_mass)
     # perform fit
     factors = 0.0001*np.array([lib[band].lpivot.to('angstrom').value for band in interp.bands])*u.micron
-    res = lmfit.minimize(loss, params, args = (flux, e_flux, factors, interp), **coarse_kws)
+    res = lmfit.minimize(loss, params, args = (flux, e_flux, factors, interp, False, logg_function), **coarse_kws)
     return res
 
 def mcmc_fit(flux : np.array, e_flux : np.array, plx : np.float64, e_plx : np.float64, av : np.float64, e_av : np.float64, 
