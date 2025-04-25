@@ -16,6 +16,7 @@ interpolator/data/1d_da_nlte/800_LyA_IR
 interpolator/data/1d_da_nlte/850_LyA_IR
 interpolator/data/1d_da_nlte/900_LyA_IR
 interpolator/data/1d_da_nlte/950_LyA_IR
+interpolator/data/1d_da_nlte/cache_table.csv
 interpolator/data/1d_elm_da_lte/500_ELM
 interpolator/data/1d_elm_da_lte/525_ELM
 interpolator/data/1d_elm_da_lte/550_ELM

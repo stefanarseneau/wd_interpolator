@@ -97,8 +97,6 @@ class WarwickSpectrum:
         self.wavl, self.fluxes = wavls[0][mask], fluxes_np[:,mask]
         # convert to flam if that option is specified
         if self.units == 'flam':
-            #for i in range(len(self.fluxes)):
-            #    self.fluxes[i] = 2.99792458e18 * self.fluxes[i] / self.wavl[i]**2 
             self.fnu_to_flam()
 
         if supported_models[model][2] == 'air':
