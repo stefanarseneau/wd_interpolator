@@ -55,7 +55,7 @@ def get_model_flux(theta : np.array, factors : np.array, interpolator : interpol
     radius *= radius_sun # Rsun to meter
     distance *= pc_to_m # Parsec to meter
     extinction = np.array([0.835*av, 1.139*av, 0.650*av])
-    return (radius / distance)**2 * fl * np.power(10.0, -0.4 * extinction) #F99(Rv=3.1).extinguish(factors, Av=av)#*## scale down flux by distance
+    return (radius / distance)**2 * fl * F99(Rv=3.1).extinguish(factors, Av=av)#np.power(10.0, -0.4 * extinction) ### scale down flux by distance
 
 def loss(params, fl, e_fl, factors, interp, logg_function = None):
     # ugly cases code. need to kill this with reason
