@@ -45,5 +45,15 @@ def get_default_filters():
     return {
         'Gaia_G' : load_from_path(os.path.join(dirname, 'bandpasses/Gaia_G.npy')),
         'Gaia_BP' : load_from_path(os.path.join(dirname, 'bandpasses/Gaia_BP.npy')),
-        'Gaia_RP' : load_from_path(os.path.join(dirname, 'bandpasses/Gaia_RP.npy'))
+        'Gaia_RP' : load_from_path(os.path.join(dirname, 'bandpasses/Gaia_RP.npy')),
+        'SDSS_u' : load_from_path(os.path.join(dirname, 'bandpasses/SDSS_u.npy')),
+        'SDSS_g' : load_from_path(os.path.join(dirname, 'bandpasses/SDSS_g.npy')),
+        'SDSS_r' : load_from_path(os.path.join(dirname, 'bandpasses/SDSS_r.npy')),
+        'SDSS_i' : load_from_path(os.path.join(dirname, 'bandpasses/SDSS_i.npy')),
+        'SDSS_z' : load_from_path(os.path.join(dirname, 'bandpasses/SDSS_z.npy')),
+        'PS1_g' : load_from_path(os.path.join(dirname, 'bandpasses/PS1_g.npy')),
+        'PS1_r' : load_from_path(os.path.join(dirname, 'bandpasses/PS1_r.npy')),
+        'PS1_i' : load_from_path(os.path.join(dirname, 'bandpasses/PS1_i.npy')),
+        'PS1_z' : load_from_path(os.path.join(dirname, 'bandpasses/PS1_z.npy')),
+        'PS1_y' : load_from_path(os.path.join(dirname, 'bandpasses/PS1_y.npy')),
     }

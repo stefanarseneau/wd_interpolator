@@ -102,7 +102,7 @@ class Likelihood:
         self.factors = 0.0001*np.array([lib[band].lpivot.to('angstrom').value for band in interp.bands])*u.micron
 
     def ll(self, theta, logg_function = None):
-        flux_model = get_model_flux(theta, factors=self.factors, interpolator=self.interp, logg_function=logg_function)
+        flux_model = get_model_flux(theta, interpolator=self.interp, logg_function=logg_function)
         return -0.5 * np.sum((self.flux - flux_model)**2 / self.e_flux**2 + np.log(2 * np.pi * self.e_flux**2))
     
     def gaussian_prior(self, val : np.float64, true : np.float64, e_true : np.float64):
