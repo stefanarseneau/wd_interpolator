@@ -22,6 +22,28 @@ class WarwickPhotometry:
         self.spectrum = WarwickSpectrum(self.model_name, self.units, **speckws)
         self.SED = SED(filters, self.spectrum.wavl)
 
+    def make_cache(self, Rv = 3.1, minAV = 0.0001, maxAV = 0.5, nAV = 60):
+        def cached_interp(teff, logg, av = None):
+            if av is None:
+                return interp_sansav((teff, logg))
+            else:
+                return interp((teff, logg, av))
+        # make the info we need
+        avs = np.linspace(minAV, maxAV, nAV)
+        T, L, A = np.meshgrid(10**self.spectrum.unique_logteff, self.spectrum.unique_logg, avs, indexing='ij')
+        # compute the grid without redenning
+        grid_sansav = self.SED(self.spectrum(T[...,0], L[...,0])[...,None,:], axis=-1)
+        interp_sansav =  RegularGridInterpolator(
+            (T[:,0,0], L[0,:,0]), grid_sansav, method='linear',
+            bounds_error=False, fill_value=None)
+        # compute the grid with redenning
+        ext_grid = np.array([G23(Rv=Rv).extinguish(1e4/(self.spectrum.wavl*u.micron), Av=av) for av in avs])
+        grid = self.SED((self.spectrum(T, L) * ext_grid[None,None,:,:])[...,None,:], axis=-1)
+        interp =  RegularGridInterpolator(
+            (T[:,0,0], L[0,:,0], A[0,0,:]), grid, method='linear',
+            bounds_error=False, fill_value=None)
+        return cached_interp, (T[:,0,0], L[0,:,0], A[0,0,:], grid_sansav, grid)
+
     def __call__(self, teff, logg, av = None, Rv = 3.1):
         if av is None:
             return self.SED(self.spectrum(teff, logg))

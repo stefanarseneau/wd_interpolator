@@ -27,14 +27,14 @@ class SED:
         self.transms = np.array([np.interp(wavl, filt.wavl, filt.transm)
                                   for filt in filters])
         
-    def __call__(self, flux, wavl = None):
+    def __call__(self, flux, wavl = None, axis = 1):
         """integrate a spectrum through a filter
         """
         if wavl == None:
-            return np.trapezoid(flux*self.transms*self.wavl, self.wavl, axis=1) / np.trapezoid(self.transms*self.wavl, self.wavl, axis=1)
+            return np.trapezoid(flux*self.transms*self.wavl, self.wavl, axis=axis) / np.trapezoid(self.transms*self.wavl, self.wavl, axis=axis)
         else:
             transms = np.array([np.interp(wavl, self.wavl, tr) for tr in self.transms])
-            return np.trapezoid(flux*transms*wavl, wavl, axis=1) / np.trapezoid(transms*wavl, wavl, axis=1)
+            return np.trapezoid(flux*transms*wavl, wavl, axis=axis) / np.trapezoid(transms*wavl, wavl, axis=axis)
         
 def load_from_path(path):
     data = np.load(path)

@@ -99,7 +99,6 @@ class Likelihood:
         self.flux, self.e_flux = flux.astype(np.float64), e_flux.astype(np.float64)
         # interpolation
         self.interp = interp
-        self.factors = 0.0001*np.array([lib[band].lpivot.to('angstrom').value for band in interp.bands])*u.micron
 
     def ll(self, theta, logg_function = None):
         flux_model = get_model_flux(theta, interpolator=self.interp, logg_function=logg_function)
