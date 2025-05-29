@@ -13,7 +13,7 @@ from dust_extinction.parameter_averages import F99
 import astropy.units as u
 
 from typing import Tuple
-from . import interpolator
+from . import atmos
 
 
 #physical constants in SI units
@@ -24,8 +24,8 @@ newton_G = 6.674e-11 #N m^2/kg^2
 pc_to_m = 3.086775e16
 
 lib = pyphot.get_library()
-def get_photo_bands(synthmag : pd.DataFrame):
-    bands = [col for col in synthmag.columns if col in sorted(lib.content)]
+def get_photo_bands(df : pd.DataFrame):
+    bands = [col for col in df.columns if col in sorted(lib.content)]
     e_bands = [f"e_{col}" for col in bands]
     return bands, e_bands
 
@@ -33,11 +33,10 @@ def mag_to_flux(mag : np.array, e_mag : np.array, filters : np.array) -> Tuple[n
     """convert vega magnitudes to fluxes in flam units
     """
     flux = np.array([10**(-0.4*(mag[i] + lib[band].Vega_zero_mag)) for i, band in enumerate(filters)])
-    #e_flux = np.array([np.abs((np.log(10)*(-0.4)*10**(-0.4 * (mag[i] + lib[band].Vega_zero_mag)) * e_mag[i])) for i, band in enumerate(filters)])
     e_flux = 1.09 * flux * e_mag
     return flux, e_flux
 
-def get_model_flux(theta : np.array, factors : np.array, interpolator : interpolator.WarwickPhotometry, logg_function = None) -> np.array:
+def get_model_flux(theta : np.array, interpolator : atmos.WarwickPhotometry, logg_function = None) -> np.array:
     """get model photometric flux for a WD with a given radius, located a given distance away
     """     
     mass_sun, radius_sun, newton_G, speed_light = 1.9884e30, 6.957e8, 6.674e-11, 299792458
@@ -49,14 +48,14 @@ def get_model_flux(theta : np.array, factors : np.array, interpolator : interpol
         # if logg function is provided, use it
         teff, logg, distance, av = theta
         radius = logg_function(teff, logg)
-    fl = 4 * np.pi * interpolator(teff, logg) # flux in physical units
+    fl = 4 * np.pi * interpolator(teff, logg, av = av) # flux in physical units
     #convert to SI units
     pc_to_m, radius_sun = 3.086775e16, 6.957e8
     radius *= radius_sun # Rsun to meter
     distance *= pc_to_m # Parsec to meter
-    return (radius / distance)**2 * fl * F99(Rv=3.1).extinguish(factors, Av=av)#np.power(10.0, -0.4 * extinction) / (2.99792458e18)
+    return (radius / distance)**2 * fl
 
-def loss(params, fl, e_fl, factors, interp, logg_function = None):
+def loss(params, fl, e_fl, interp, logg_function = None):
     # ugly cases code. need to kill this with reason
     if logg_function == None:
         teff, radius, distance, av, mass = params.valuesdict().values()
@@ -64,10 +63,10 @@ def loss(params, fl, e_fl, factors, interp, logg_function = None):
     else:
         teff, logg, distance, av = params.valuesdict().values()
         theta = np.array([teff, logg, distance, av])
-    flux_model = get_model_flux(theta, factors=factors, interpolator=interp, logg_function=logg_function)
+    flux_model = get_model_flux(theta, interpolator=interp, logg_function=logg_function)
     return (fl - flux_model) / e_fl
 
-def coarse_fit(flux : np.array, e_flux : np.array, interp : interpolator.WarwickPhotometry, distance : np.float64, av = np.float64,
+def coarse_fit(flux : np.array, e_flux : np.array, interp : atmos.WarwickPhotometry, distance : np.float64, av = np.float64,
                 logg_function = None, vary_mass : bool = False, p0 : list = [10000, 8, 0.6], 
                 coarse_kws : dict = {'nan_policy':'omit'}):
     # make parameters
@@ -91,12 +90,11 @@ def coarse_fit(flux : np.array, e_flux : np.array, interp : interpolator.Warwick
     if logg_function == None:
         params.add('mass', value=p0[2], min=0.1, max=1.4, vary=vary_mass)
     # perform fit
-    factors = 0.0001*np.array([lib[band].lpivot.to('angstrom').value for band in interp.bands])*u.micron
-    res = lmfit.minimize(loss, params, args = (flux, e_flux, factors, interp, logg_function), **coarse_kws)
+    res = lmfit.minimize(loss, params, args = (flux, e_flux, interp, logg_function), **coarse_kws)
     return res
 
 class Likelihood:
-    def __init__(self, flux : np.array, e_flux : np.array, interp = interpolator.WarwickPhotometry):
+    def __init__(self, flux : np.array, e_flux : np.array, interp = atmos.WarwickPhotometry):
         # fluxes
         self.flux, self.e_flux = flux.astype(np.float64), e_flux.astype(np.float64)
         # interpolation
