@@ -47,20 +47,24 @@ def purge_cachetables(names : list = None):
 class WarwickPhotometry:
     """
     """
-    def __init__(self, model, bands, precache=True, speckws = {}):
+    def __init__(self, model, bands, precache=True, units='flam', speckws = {}):
+        assert units in ['flam', 'fnu']
         self.model = model
         self.bands = bands # pyphot library objects
         self.precache = precache # use precaching?
-        self.spectrum = WarwickSpectrum(model = self.model, with_cachetable = self.precache, **speckws)
+        self.units = units
+        self.spectrum = WarwickSpectrum(model = self.model, units=units, with_cachetable = self.precache, **speckws)
 
         if not self.precache:
             self.teff_lims = (1500, 140000.0)
-            self.logg_lims = (6.5, 9.49)
+            self.logg_lims = (6.5, 9.49) if self.model == "1d_da_nlte" else (7, 9)
             # generate the interpolator 
-            self.interp = lambda teff, logg: np.array([lib[band].get_flux(self.spectrum.wavl * pyphot.unit['angstrom'], self.spectrum.model_spec((teff, logg)) * pyphot.unit['erg/s/cm**2/angstrom'], axis = 1).to('erg/s/cm**2/angstrom').value for band in self.bands])
+            self.interp = lambda teff, logg: np.array([lib[band].get_flux(self.spectrum.wavl*pyphot.unit['angstrom'], 
+                                                                        self.spectrum.model_spec((teff, logg))*pyphot.unit['flam'], 
+                                                                        axis = 1).value for band in self.bands])
         else:
-            self.teff_lims = (1500, 140000.0)
-            self.logg_lims = (6.5, 9.49)
+            self.teff_lims = (5000, 140000.0)
+            self.logg_lims = (6.5, 9.49) if self.model == "1d_da_nlte" else (7, 9)
             table = self.spectrum.cachetable
             self.interp = MultiBandInterpolator(table, self.bands, self.teff_lims, self.logg_lims)
 
@@ -115,7 +119,7 @@ class WarwickSpectrum:
         for i, logg in tqdm.tqdm(enumerate(self.unique_logg), total=self.unique_logg.shape[0]):
             for j, teff in enumerate(10**self.unique_logteff):
                 idx = i*self.unique_logteff.shape[0] + j
-                fluxes = np.array([lib[filt].get_flux(self.wavl*pyphot.unit['AA'], self(teff, logg)*pyphot.unit['erg/s/cm**2/AA']).to('erg/s/cm**2/AA').value for filt in filters])
+                fluxes = np.array([lib[filt].get_flux(self.wavl*pyphot.unit['AA'], self(teff, logg)*pyphot.unit[self.units]).to(self.units).value for filt in filters])
                 rowvals[idx,0] = teff
                 rowvals[idx,1] = logg
                 rowvals[idx,2:] = fluxes

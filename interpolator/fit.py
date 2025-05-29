@@ -15,6 +15,7 @@ import astropy.units as u
 from typing import Tuple
 from . import interpolator
 
+
 #physical constants in SI units
 speed_light = 299792458 #m/s
 radius_sun = 6.957e8 #m
@@ -47,15 +48,13 @@ def get_model_flux(theta : np.array, factors : np.array, interpolator : interpol
     else:
         # if logg function is provided, use it
         teff, logg, distance, av = theta
-        #radius = logg_function(teff, radius)
         radius = logg_function(teff, logg)
     fl = 4 * np.pi * interpolator(teff, logg) # flux in physical units
     #convert to SI units
     pc_to_m, radius_sun = 3.086775e16, 6.957e8
     radius *= radius_sun # Rsun to meter
     distance *= pc_to_m # Parsec to meter
-    extinction = np.array([0.835*av, 1.139*av, 0.650*av])
-    return (radius / distance)**2 * fl * F99(Rv=3.1).extinguish(factors, Av=av)#np.power(10.0, -0.4 * extinction) ### scale down flux by distance
+    return (radius / distance)**2 * fl * F99(Rv=3.1).extinguish(factors, Av=av)#np.power(10.0, -0.4 * extinction) / (2.99792458e18)
 
 def loss(params, fl, e_fl, factors, interp, logg_function = None):
     # ugly cases code. need to kill this with reason
@@ -63,8 +62,8 @@ def loss(params, fl, e_fl, factors, interp, logg_function = None):
         teff, radius, distance, av, mass = params.valuesdict().values()
         theta = np.array([teff, radius, distance, av, mass])
     else:
-        teff, radius, distance, av = params.valuesdict().values()
-        theta = np.array([teff, radius, distance, av])
+        teff, logg, distance, av = params.valuesdict().values()
+        theta = np.array([teff, logg, distance, av])
     flux_model = get_model_flux(theta, factors=factors, interpolator=interp, logg_function=logg_function)
     return (fl - flux_model) / e_fl
 
@@ -73,12 +72,24 @@ def coarse_fit(flux : np.array, e_flux : np.array, interp : interpolator.Warwick
                 coarse_kws : dict = {'nan_policy':'omit'}):
     # make parameters
     params = lmfit.Parameters()
-    params.add('teff', value=p0[0], min=2000, max=120000, vary=True)
-    params.add('logg', value=p0[1], min=7.1, max=9.4, vary=True)
+    if logg_function is not None:
+        if interp.model == "1d_da_nlte":
+            params.add('teff', value=p0[0], min=2000, max=120000, vary=True)
+            params.add('logg', value=p0[1], min=7.1, max=9.4, vary=True)
+        else:
+            params.add('teff', value=p0[0], min=2000, max=120000, vary=True)
+            params.add('logg', value=p0[1], min=7.1, max=9.0, vary=True)
+    else:
+        if interp.model == "1d_da_nlte":
+            params.add('teff', value=p0[0], min=2000, max=120000, vary=True)
+            params.add('radius', value=p0[1], min=0.006, max=0.022, vary=True)
+        else:
+            params.add('teff', value=p0[0], min=2000, max=120000, vary=True)
+            params.add('radius', value=p0[1], min=0.006, max=0.022, vary=True)
     params.add('distance', value=distance, min=1, max=10000, vary=False)
     params.add('av', value=av, min=0.000001, max=2, vary=False)
-    if logg_function is None:
-        params.add('mass', value=0.6, min=0.1, max=1.4, vary=vary_mass)
+    if logg_function == None:
+        params.add('mass', value=p0[2], min=0.1, max=1.4, vary=vary_mass)
     # perform fit
     factors = 0.0001*np.array([lib[band].lpivot.to('angstrom').value for band in interp.bands])*u.micron
     res = lmfit.minimize(loss, params, args = (flux, e_flux, factors, interp, logg_function), **coarse_kws)

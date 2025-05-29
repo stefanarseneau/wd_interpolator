@@ -55,12 +55,14 @@ class WarwickPhotometry:
 
         if not self.precache:
             self.teff_lims = (1500, 140000.0)
-            self.logg_lims = (6.5, 9.49)
+            self.logg_lims = (6.5, 9.49) if self.model == "1d_da_nlte" else (7, 9)
             # generate the interpolator 
-            self.interp = lambda teff, logg: np.array([lib[band].get_flux(self.spectrum.wavl * pyphot.unit['angstrom'], self.spectrum.model_spec((teff, logg)) * pyphot.unit['erg/s/cm**2/angstrom'], axis = 1).to('erg/s/cm**2/angstrom').value for band in self.bands])
+            self.interp = lambda teff, logg: np.array([lib[band].get_flux(self.spectrum.wavl * pyphot.unit['angstrom'], 
+                                                                        self.spectrum.model_spec((teff, logg)) * pyphot.unit['erg/s/cm**2/angstrom'], 
+                                                                        axis = 1).to('erg/s/cm**2/angstrom').value for band in self.bands])
         else:
-            self.teff_lims = (1500, 140000.0)
-            self.logg_lims = (6.5, 9.49)
+            self.teff_lims = (5000, 140000.0)
+            self.logg_lims = (6.5, 9.49) if self.model == "1d_da_nlte" else (7, 9)
             table = self.spectrum.cachetable
             self.interp = MultiBandInterpolator(table, self.bands, self.teff_lims, self.logg_lims)
 
