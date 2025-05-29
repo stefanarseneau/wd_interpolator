@@ -1,1 +1,3 @@
 recursive-include interpolator/data/ *
+recursive-include interpolator/atmos/bandpasses/ *
+
