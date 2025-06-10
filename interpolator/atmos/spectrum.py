@@ -16,13 +16,21 @@ supported_models = {'1d_da_nlte': ('../data/1d_da_nlte/', 2, 'air'),
                             '3d_da_lte_old': ('../data/3d_da_lte_old/', 2, 'air')}
 
 class WarwickPhotometry:
-    def __init__(self, model_name, filters, units = 'flam', speckws = {'wavl_range' : (1000,30000)}):
+    def __init__(self, model_name : str, filters : list, units : str = 'flam', speckws : dict = {'wavl_range' : (1000,30000)}):
         self.model_name = model_name
         self.units = units
         self.spectrum = WarwickSpectrum(self.model_name, self.units, **speckws)
         self.SED = SED(filters, self.spectrum.wavl)
+        self.zeropoints = self.SED.zeropoints
 
-    def make_cache(self, Rv = 3.1, minAV = 0.0001, maxAV = 0.5, nAV = 60):
+    def mag_to_flux(self, mag : np.array, e_mag : np.array):
+        """convert vega magnitudes to fluxes in flam units
+        """
+        flux = np.power(10, -0.4*(mag + self.zeropoints))  
+        e_flux = 1.09 * flux * e_mag
+        return flux, e_flux
+
+    def make_cache(self, Rv : float = 3.1, minAV : float = 0.0001, maxAV : float = 0.5, nAV : int = 60):
         def cached_interp(teff, logg, av = None):
             if av is None:
                 return interp_sansav((teff, logg))
@@ -44,7 +52,7 @@ class WarwickPhotometry:
             bounds_error=False, fill_value=None)
         return cached_interp, (T[:,0,0], L[0,:,0], A[0,0,:], grid_sansav, grid)
 
-    def __call__(self, teff, logg, av = None, Rv = 3.1):
+    def __call__(self, teff : float, logg : float, av : float = None, Rv : float = 3.1):
         if av is None:
             return self.SED(self.spectrum(teff, logg))
         else:
