@@ -18,7 +18,7 @@ class Filter:
     def __call__(self, flux, wavl = None):
         """integrate a spectrum through a filter
         """
-        transm = np.interp(wavl, self.wavl, self.transm) if wavl is not None else self.transm
+        transm = np.interp(wavl, self.wavl, self.transm, left=0., right=0.) if wavl is not None else self.transm
         wavl = self.wavl if wavl is None else wavl
         num = np.trapezoid(flux*transm*wavl, wavl)
         den = np.trapezoid(transm*wavl, wavl)
@@ -41,7 +41,7 @@ class SED:
         if wavl == None:
             return np.trapezoid(flux*self.transms*self.wavl, self.wavl, axis=axis) / np.trapezoid(self.transms*self.wavl, self.wavl, axis=axis)
         else:
-            transms = np.array([np.interp(wavl, self.wavl, tr) for tr in self.transms])
+            transms = np.array([np.interp(wavl, self.wavl, tr, left=0., right=0.) for tr in self.transms])
             return np.trapezoid(flux*transms*wavl, wavl, axis=axis) / np.trapezoid(transms*wavl, wavl, axis=axis)
         
 def load_from_path(path, filterkws):
