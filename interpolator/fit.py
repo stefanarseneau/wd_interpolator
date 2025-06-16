@@ -102,7 +102,8 @@ class Likelihood:
 
     def ll(self, theta, logg_function = None, extinction = None, kwargs = {}):
         flux_model = get_model_flux(theta, interpolator=self.interp, logg_function=logg_function, **kwargs)
-        flux = self.flux * 10**(-0.4*extinction) if extinction is not None else self.flux; e_flux = self.e_flux
+        flux = self.flux * 10**(0.4*extinction) if extinction is not None else self.flux; e_flux = self.e_flux
+        print(self.flux == flux)
         return -0.5 * np.sum((flux - flux_model)**2 / e_flux**2 + np.log(2 * np.pi * e_flux**2))
     
     def gaussian_prior(self, val : np.float64, true : np.float64, e_true : np.float64):
