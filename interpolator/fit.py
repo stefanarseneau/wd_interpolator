@@ -36,7 +36,7 @@ def mag_to_flux(mag : np.array, e_mag : np.array, filters : np.array) -> Tuple[n
     e_flux = 1.09 * flux * e_mag
     return flux, e_flux
 
-def get_model_flux(theta : np.array, interpolator : atmos.WarwickPhotometry, use_av : bool = True, logg_function = None) -> np.array:
+def get_model_flux(theta : np.array, interpolator : atmos.WarwickPhotometry, logg_function = None) -> np.array:
     """get model photometric flux for a WD with a given radius, located a given distance away
     """     
     mass_sun, radius_sun, newton_G, speed_light = 1.9884e30, 6.957e8, 6.674e-11, 299792458
@@ -48,7 +48,7 @@ def get_model_flux(theta : np.array, interpolator : atmos.WarwickPhotometry, use
         # if logg function is provided, use it
         teff, logg, distance, av = theta
         radius = logg_function(teff, logg)
-    fl = 4 * np.pi * interpolator(teff, logg, av = av) if use_av else 4 * np.pi * interpolator(teff, logg)# flux in physical units
+    fl = 4 * np.pi * interpolator(teff, logg, av = av) # flux in physical units
     #convert to SI units
     pc_to_m, radius_sun = 3.086775e16, 6.957e8
     radius *= radius_sun # Rsun to meter
@@ -94,16 +94,11 @@ def coarse_fit(flux : np.array, e_flux : np.array, interp : atmos.WarwickPhotome
     return res
 
 class Likelihood:
-    def __init__(self, flux : np.array, e_flux : np.array, interp = atmos.WarwickPhotometry):
-        # fluxes
-        self.flux, self.e_flux = flux.astype(np.float64), e_flux.astype(np.float64)
-        # interpolation
+    def __init__(self, interp = atmos.WarwickPhotometry):
         self.interp = interp
 
-    def ll(self, theta, logg_function = None, extinction = None, kwargs = {}):
+    def ll(self, theta, flux, e_flux, logg_function = None, extinction = None, kwargs = {}):
         flux_model = get_model_flux(theta, interpolator=self.interp, logg_function=logg_function, **kwargs)
-        flux = self.flux * 10**(0.4*extinction) if extinction is not None else self.flux; e_flux = self.e_flux
-        print(self.flux == flux)
         return -0.5 * np.sum((flux - flux_model)**2 / e_flux**2 + np.log(2 * np.pi * e_flux**2))
     
     def gaussian_prior(self, val : np.float64, true : np.float64, e_true : np.float64):
