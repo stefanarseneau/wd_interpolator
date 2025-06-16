@@ -50,7 +50,7 @@ class WarwickPhotometry:
         interp =  RegularGridInterpolator(
             (T[:,0,0], L[0,:,0], A[0,0,:]), grid, method='linear',
             bounds_error=False, fill_value=None)
-        return cached_interp, (T[:,0,0], L[0,:,0], A[0,0,:], grid_sansav, grid)
+        return cached_interp, interp_sansav, (T[:,0,0], L[0,:,0], A[0,0,:], grid_sansav, grid, )
 
     def __call__(self, teff : float, logg : float, av : float = None, Rv : float = 3.1):
         if av is None:
