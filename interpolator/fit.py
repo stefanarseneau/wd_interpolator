@@ -48,10 +48,10 @@ def get_model_flux(theta : np.array, interpolator : atmos.WarwickPhotometry, log
         # if logg function is provided, use it
         teff, logg, distance, av = theta
         radius = logg_function(teff, logg)
-    try:
-        fl = 4 * np.pi * interpolator(teff, logg, av = av) # flux in physical units
-    except TypeError:
-        fl = 4 * np.pi * interpolator(teff, logg)
+    #try:
+    fl = 4 * np.pi * interpolator(teff, logg, av = av) # flux in physical units
+    #except TypeError:
+    #    fl = 4 * np.pi * interpolator(teff, logg)
     #convert to SI units
     pc_to_m, radius_sun = 3.086775e16, 6.957e8
     radius *= radius_sun # Rsun to meter
