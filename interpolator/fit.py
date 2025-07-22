@@ -100,8 +100,10 @@ class Likelihood:
     def __init__(self, interp = atmos.WarwickPhotometry):
         self.interp = interp
 
-    def ll(self, theta, flux, e_flux, logg_function = None, extinction = None, kwargs = {}):
+    def ll(self, theta, flux, e_flux, logg_function = None, extinction = None, use_jy = False, kwargs = {}):
         flux_model = get_model_flux(theta, interpolator=self.interp, logg_function=logg_function, **kwargs)
+        if use_jy:
+            flux_model *= 1e23
         return -0.5 * np.sum((flux - flux_model)**2 / e_flux**2 + np.log(2 * np.pi * e_flux**2))
     
     def gaussian_prior(self, val : np.float64, true : np.float64, e_true : np.float64):
