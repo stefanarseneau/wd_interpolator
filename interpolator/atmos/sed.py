@@ -64,4 +64,18 @@ def get_default_filters(filterkws = {}):
         'PS1_i' : load_from_path(os.path.join(dirname, 'bandpasses/PS1_i.npy'), filterkws),
         'PS1_z' : load_from_path(os.path.join(dirname, 'bandpasses/PS1_z.npy'), filterkws),
         'PS1_y' : load_from_path(os.path.join(dirname, 'bandpasses/PS1_y.npy'), filterkws),
+        'JPLUS_J0395' : load_from_path(os.path.join(dirname, 'bandpasses/JPLUS_J0395.npy'), filterkws),
+        'JPLUS_F0395' : load_from_path(os.path.join(dirname, 'bandpasses/JPLUS_F0395.npy'), filterkws),
+        'JPLUS_F0861' : load_from_path(os.path.join(dirname, 'bandpasses/JPLUS_F0861.npy'), filterkws),
+        'JPLUS_J0430' : load_from_path(os.path.join(dirname, 'bandpasses/JPLUS_J0430.npy'), filterkws),
+        'JPLUS_F0430' : load_from_path(os.path.join(dirname, 'bandpasses/JPLUS_F0430.npy'), filterkws),
+        'JPLUS_J0515' : load_from_path(os.path.join(dirname, 'bandpasses/JPLUS_J0515.npy'), filterkws),
+        'JPLUS_F0378' : load_from_path(os.path.join(dirname, 'bandpasses/JPLUS_F0378.npy'), filterkws),
+        'JPLUS_J0861' : load_from_path(os.path.join(dirname, 'bandpasses/JPLUS_J0861.npy'), filterkws),
+        'JPLUS_F0515' : load_from_path(os.path.join(dirname, 'bandpasses/JPLUS_F0515.npy'), filterkws),
+        'JPLUS_J0378' : load_from_path(os.path.join(dirname, 'bandpasses/JPLUS_J0378.npy'), filterkws),
+        'JPLUS_F0410' : load_from_path(os.path.join(dirname, 'bandpasses/JPLUS_F0410.npy'), filterkws),
+        'JPLUS_J0660' : load_from_path(os.path.join(dirname, 'bandpasses/JPLUS_J0660.npy'), filterkws),
+        'JPLUS_J0410' : load_from_path(os.path.join(dirname, 'bandpasses/JPLUS_J0410.npy'), filterkws),
+        'JPLUS_F0660' : load_from_path(os.path.join(dirname, 'bandpasses/JPLUS_F0660.npy'), filterkws)
     }
