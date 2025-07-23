@@ -84,7 +84,7 @@ def get_default_filters(filterkws = {}):
         'JPLUS_J0660' : load_from_path(os.path.join(dirname, 'bandpasses/JPLUS_J0660.npy'), filterkws),
         'JPLUS_J0861' : load_from_path(os.path.join(dirname, 'bandpasses/JPLUS_J0861.npy'), filterkws),
         # J-PLUS SDSS
-        'JPLUS_uJAVA' : load_from_path(os.path.join(dirname, 'bandpasses/JPLUS_uJAVA.npy'), filterkws),
+        'JPLUS_uJava' : load_from_path(os.path.join(dirname, 'bandpasses/JPLUS_uJAVA.npy'), filterkws),
         'JPLUS_gSDSS' : load_from_path(os.path.join(dirname, 'bandpasses/JPLUS_gSDSS.npy'), filterkws),
         'JPLUS_rSDSS' : load_from_path(os.path.join(dirname, 'bandpasses/JPLUS_rSDSS.npy'), filterkws),
         'JPLUS_iSDSS' : load_from_path(os.path.join(dirname, 'bandpasses/JPLUS_iSDSS.npy'), filterkws),
