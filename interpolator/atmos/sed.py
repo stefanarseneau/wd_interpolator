@@ -38,7 +38,7 @@ class SED:
     def __call__(self, flux, wavl = None, axis = 1):
         """integrate a spectrum through a filter
         """
-        if wavl == None:
+        if wavl is None:
             return np.trapezoid(flux*self.transms*self.wavl, self.wavl, axis=axis) / np.trapezoid(self.transms*self.wavl, self.wavl, axis=axis)
         else:
             transms = np.array([np.interp(wavl, self.wavl, tr, left=0., right=0.) for tr in self.transms])
