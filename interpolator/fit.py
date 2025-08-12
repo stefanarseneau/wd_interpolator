@@ -46,8 +46,8 @@ def get_model_flux(theta : np.array, interpolator : atmos.WarwickPhotometry, log
         logg = np.log10(100*(newton_G * mass_sun * mass) / (radius * radius_sun)**2)
     else:
         # if logg function is provided, use it
-        teff, logg, distance, av = theta
-        radius = logg_function(teff, logg)
+        teff, radius, distance, av = theta
+        logg = logg_function(teff, radius)
     #try:
     fl = 4 * np.pi * interpolator(teff, logg, av = av) # flux in physical units
     #except TypeError:
@@ -64,23 +64,23 @@ def loss(params, fl, e_fl, interp, logg_function = None):
         teff, radius, distance, av, mass = params.valuesdict().values()
         theta = np.array([teff, radius, distance, av, mass])
     else:
-        teff, logg, distance, av = params.valuesdict().values()
-        theta = np.array([teff, logg, distance, av])
+        teff, radius, distance, av = params.valuesdict().values()
+        theta = np.array([teff, radius, distance, av])
     flux_model = get_model_flux(theta, interpolator=interp, logg_function=logg_function)
     return (fl - flux_model) / e_fl
 
 def coarse_fit(flux : np.array, e_flux : np.array, interp : atmos.WarwickPhotometry, distance : np.float64, av = np.float64,
-                logg_function = None, vary_mass : bool = False, p0 : list = [10000, 8, 0.6], 
+                logg_function = None, vary_mass : bool = False, p0 : list = [10000, 0.012, 0.6], 
                 coarse_kws : dict = {'nan_policy':'omit'}):
     # make parameters
     params = lmfit.Parameters()
     if logg_function is not None:
         if interp.model == "1d_da_nlte":
             params.add('teff', value=p0[0], min=2000, max=120000, vary=True)
-            params.add('logg', value=p0[1], min=7.1, max=9.4, vary=True)
+            params.add('radius', value=p0[1], min=0.006, max=0.022, vary=True)
         else:
             params.add('teff', value=p0[0], min=2000, max=120000, vary=True)
-            params.add('logg', value=p0[1], min=7.1, max=9.0, vary=True)
+            params.add('radius', value=p0[1], min=0.006, max=0.022, vary=True)
     else:
         if interp.model == "1d_da_nlte":
             params.add('teff', value=p0[0], min=2000, max=120000, vary=True)
