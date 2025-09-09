@@ -50,7 +50,7 @@ def load_from_path(path, filterkws):
 
 def get_default_filters(filterkws = {}):
     dirname = os.path.dirname(os.path.abspath(__file__)) 
-    return {
+    bands = {
         # Gaia Photometry
         'Gaia_G' : load_from_path(os.path.join(dirname, 'bandpasses/Gaia_G.npy'), filterkws),
         'Gaia_BP' : load_from_path(os.path.join(dirname, 'bandpasses/Gaia_BP.npy'), filterkws),
@@ -90,3 +90,11 @@ def get_default_filters(filterkws = {}):
         'JPLUS_iSDSS' : load_from_path(os.path.join(dirname, 'bandpasses/JPLUS_iSDSS.npy'), filterkws),
         'JPLUS_zSDSS' : load_from_path(os.path.join(dirname, 'bandpasses/JPLUS_zSDSS.npy'), filterkws),
     }
+    ## define some synthetic filters for comparison
+    lam_min, lam_max = 3600, 9600
+    n_boxes = 24 ; width = 300.0
+    centers = np.linspace(lam_min + width/2, lam_max - width/2, n_boxes)
+    lam = np.linspace(1000, 20000, 10000)
+    for ii, c in enumerate(centers):
+        bands[f"SYNTH_{ii+1}"] = Filter(lam, ((lam >= c - width/2) & (lam <= c + width/2)).astype(float))
+    return bands
