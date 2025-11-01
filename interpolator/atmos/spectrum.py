@@ -9,19 +9,30 @@ import astropy.units as u
 from .sed import SED
 
 dirname = os.path.dirname(os.path.abspath(__file__)) 
-supported_models = {'1d_da_nlte': ('../data/1d_da_nlte/', 2, 'air'),
-                            '1d_elm_da_lte': ('../data/1d_elm_da_lte/', 2, 'air'),
-                            '3d_da_lte_noh2': ('../data/3d_da_lte_noh2/', 2, 'vac'),
-                            '3d_da_lte_h2': ('../data/3d_da_lte_h2/', 2, 'vac'),
-                            '3d_da_lte_old': ('../data/3d_da_lte_old/', 2, 'air')}
+supported_models = {
+    '1d_da_nlte': ('../data/1d_da_nlte/', 2, 'air'),
+    '1d_db_nlte': ('../data/1d_db_nlte', 3, 'air'),
+    '1d_elm_da_lte': ('../data/1d_elm_da_lte/', 2, 'air'),
+    '3d_da_lte_noh2': ('../data/3d_da_lte_noh2/', 2, 'vac'),
+    '3d_da_lte_h2': ('../data/3d_da_lte_h2/', 2, 'vac'),
+    '3d_da_lte_old': ('../data/3d_da_lte_old/', 2, 'air')
+}
 
 class WarwickPhotometry:
-    def __init__(self, model_name : str, filters : list, units : str = 'flam', speckws : dict = {'wavl_range' : (1000,30000)}):
+    def __init__(self, model_name : str, filters : list, units : str = 'flam', fixedhe = None, speckws : dict = {'wavl_range' : (1000,30000)}):
         self.model_name = model_name
         self.units = units
         self.spectrum = WarwickSpectrum(self.model_name, self.units, **speckws)
         self.SED = SED(filters, self.spectrum.wavl)
         self.zeropoints = self.SED.zeropoints
+
+        self.fixedhe = fixedhe
+        self.spec_interp = lambda *args : self.spectrum.model_spec(tuple(args))
+        if supported_models[self.model_name][1] != 2:
+            self.spec_interp  = lambda *args : self.spectrum.model_spec(tuple(args) + (self.fixedhe,))
+
+        self.make_cache = self.make_cache_2p
+        self.__call__ = self.call_2p
 
     def mag_to_flux(self, mag : np.array, e_mag : np.array):
         """convert vega magnitudes to fluxes in flam units
@@ -30,7 +41,7 @@ class WarwickPhotometry:
         e_flux = 1.09 * flux * e_mag
         return flux, e_flux
 
-    def make_cache(self, Rv : float = 3.1, minAV : float = 0.0001, maxAV : float = 0.5, nAV : int = 60):
+    def make_cache_2p(self, Rv : float = 3.1, minAV : float = 0.0001, maxAV : float = 0.5, nAV : int = 60):
         def cached_interp(teff, logg, av = None):
             if av is None:
                 return interp_sansav((teff, logg))
@@ -40,23 +51,23 @@ class WarwickPhotometry:
         avs = np.linspace(minAV, maxAV, nAV)
         T, L, A = np.meshgrid(10**self.spectrum.unique_logteff, self.spectrum.unique_logg, avs, indexing='ij')
         # compute the grid without redenning
-        grid_sansav = self.SED(self.spectrum(T[...,0], L[...,0])[...,None,:], axis=-1)
+        grid_sansav = self.SED(self.spec_interp(T[...,0], L[...,0])[...,None,:], axis=-1)
         interp_sansav =  RegularGridInterpolator(
             (T[:,0,0], L[0,:,0]), grid_sansav, method='linear',
             bounds_error=False, fill_value=None)
         # compute the grid with redenning
         ext_grid = np.array([G23(Rv=Rv).extinguish(1e4/(self.spectrum.wavl*u.micron), Av=av) for av in avs])
-        grid = self.SED((self.spectrum(T, L) * ext_grid[None,None,:,:])[...,None,:], axis=-1)
+        grid = self.SED((self.spec_interp(T, L) * ext_grid[None,None,:,:])[...,None,:], axis=-1)
         interp =  RegularGridInterpolator(
             (T[:,0,0], L[0,:,0], A[0,0,:]), grid, method='linear',
             bounds_error=False, fill_value=None)
         return cached_interp, interp_sansav, (T[:,0,0], L[0,:,0], A[0,0,:], grid_sansav, grid, )
 
-    def __call__(self, teff : float, logg : float, av : float = None, Rv : float = 3.1):
+    def call_2p(self, teff : float, logg : float, av : float = None, Rv : float = 3.1):
         if av is None:
-            return self.SED(self.spectrum(teff, logg))
+            return self.SED(self.spec_interp(teff, logg))
         else:
-            return self.SED(self.spectrum(teff, logg)*G23(Rv=Rv).extinguish(1e4/(self.spectrum.wavl*u.micron), Av=av))
+            return self.SED(self.spec_interp(teff, logg)*G23(Rv=Rv).extinguish(1e4/(self.spectrum.wavl*u.micron), Av=av))
 
 class WarwickSpectrum:
     def __init__(self, model, units = 'flam', wavl_range = (3600, 9000)):
@@ -92,7 +103,11 @@ class WarwickSpectrum:
 
         if supported_models[model][2] == 'air':
             self.air2vac()
-        self.build_interpolator()
+
+        if self.nparams == 3:
+            self.build_interpolator_3p()
+        else:
+            self.build_interpolator_2p()
 
     def fnu_to_flam(self):
         self.fluxes = 2.99792458e18 * self.fluxes / self.wavl**2
@@ -113,9 +128,10 @@ class WarwickSpectrum:
                 wavls[i] = reference_grid
         return np.array(wavls), np.array(fluxes)
 
-    def build_interpolator(self):
+    def build_interpolator_2p(self):
         self.unique_logteff = np.array(sorted(list(set(self.values[:,0]))))
         self.unique_logg = np.array(sorted(list(set(self.values[:,1]))))
+
         self.flux_grid = np.zeros((len(self.unique_logteff), 
                                 len(self.unique_logg), 
                                 len(self.wavl)))
@@ -130,6 +146,28 @@ class WarwickSpectrum:
                     self.flux_grid[i,j] += -999
 
         self.model_spec = RegularGridInterpolator((10**self.unique_logteff, self.unique_logg), self.flux_grid) 
+
+    def build_interpolator_3p(self):
+        self.unique_logteff = np.array(sorted(list(set(self.values[:,0]))))
+        self.unique_logg = np.array(sorted(list(set(self.values[:,1]))))
+        self.unique_loghe = np.array(sorted(list(set(self.values[:,2]))))
+
+        self.flux_grid = np.zeros((len(self.unique_logteff), 
+                                len(self.unique_logg), 
+                                len(self.unique_loghe),
+                                len(self.wavl)))
+
+        for i in range(len(self.unique_logteff)):
+            for j in range(len(self.unique_logg)):
+                for k in range(len(self.unique_loghe)):
+                    target = [self.unique_logteff[i], self.unique_logg[j], self.unique_loghe[k]]
+                    try:
+                        indx = np.where((self.values == target).all(axis=1))[0][0]
+                        self.flux_grid[i,j,k] = self.fluxes[indx]
+                    except IndexError:
+                        self.flux_grid[i,j,k] += -999
+
+        self.model_spec = RegularGridInterpolator((10**self.unique_logteff, self.unique_logg, self.unique_loghe), self.flux_grid) 
 
     def filehandler(self, file):
         with open(file, 'r') as f:
@@ -190,7 +228,8 @@ class WarwickSpectrum:
 
             assert len(flux) == npoints, "Error reading spectrum: wrong number of points!"
             fluxes.append(flux)
+
         return values, fluxes
     
-    def __call__(self, teff, logg):
-        return self.model_spec((teff, logg))
+    def __call__(self, *args):
+        return self.model_spec(tuple(args))
