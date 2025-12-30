@@ -14,6 +14,10 @@ class Filter:
         spec = fits.open(os.path.join(dirname, 'reference', f'{zerofile}.fits'))
         wavl, flux = spec[1].data['WAVELENGTH'], spec[1].data['FLUX']
         self.zeropoint = -2.5*np.log10(self(flux, wavl))
+        #  calculate mean wavelength
+        num = np.trapezoid(self.transm*self.wavl, self.wavl)
+        den = np.trapezoid(self.transm, self.wavl)
+        self.lambda_eff = num / den
 
     def __call__(self, flux, wavl = None):
         """integrate a spectrum through a filter
@@ -93,6 +97,7 @@ def get_default_filters(filterkws = {}):
     ## define some synthetic filters for comparison
     lam_min, lam_max = 3600, 9600
     n_boxes = 24 ; width = 300.0
+    #print("ook")
     centers = np.linspace(lam_min + width/2, lam_max - width/2, n_boxes)
     lam = np.linspace(1000, 20000, 10000)
     for ii, c in enumerate(centers):
